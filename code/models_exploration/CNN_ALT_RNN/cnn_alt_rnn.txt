@@ -1,0 +1,34 @@
+# Network parameters
+    conv_filters = 16
+    kernel_size = (4, 4)
+    pool_size = 2
+    time_dense_size = 32
+    rnn_size = 512
+    minibatch_size = 32
+
+#### model ####
+    act = 'relu'
+    input_data = Input(name='the_input', shape=input_shape, dtype='float32')
+    inner = Conv2D(conv_filters, kernel_size, padding='same',
+                   activation=act, kernel_initializer='he_normal',
+                   name='conv1')(input_data)
+    inner = MaxPooling2D(pool_size=(pool_size, pool_size), name='max1')(inner)
+    inner = Conv2D(conv_filters, kernel_size, padding='same',
+                   activation=act, kernel_initializer='he_normal',
+                   name='conv2')(inner)
+    inner = MaxPooling2D(pool_size=(pool_size, pool_size), name='max2')(inner)
+
+    conv_to_rnn_dims = (img_w // (pool_size ** 2), (img_h // (pool_size ** 2)) * conv_filters)
+    inner = Reshape(target_shape=conv_to_rnn_dims, name='reshape')(inner)
+
+    # cuts down input size going into RNN:
+    inner = Dense(time_dense_size, activation=act, name='dense1')(inner)
+
+    rnn_1 = SimpleRNN(rnn_size, return_sequences=True, kernel_initializer='he_normal', name='RNN1')(inner)
+    rnn_2 = SimpleRNN(rnn_size, return_sequences=True, kernel_initializer='he_normal', name='RNN2')(rnn_1)
+
+    # transforms RNN output to character activations:
+    inner = Dense(img_gen.get_output_size(), kernel_initializer='he_normal',
+                  name='dense2')(rnn_2)
+    y_pred = Activation('softmax', name='softmax')(inner)
+    Model(inputs=input_data, outputs=y_pred).summary()

@@ -1,0 +1,55 @@
+#####model####
+act = 'relu'
+    input_data = Input(name='the_input', shape=input_shape, dtype='float32')
+    inner = Conv2D(conv_filters, kernel_size, padding='same', activation=act, kernel_initializer='he_normal', name='conv1')(input_data)
+    inner = MaxPooling2D(pool_size=(pool_size, pool_size), name='max1')(inner)
+    inner = Conv2D(conv_filters, kernel_size, padding='same', activation=act, kernel_initializer='he_normal', name='conv2')(inner)
+    inner = MaxPooling2D(pool_size=(pool_size, pool_size), name='max2')(inner)
+
+    inner_2 = Conv2D(conv_filters, kernel_size_2, padding='same', activation=act, kernel_initializer='he_normal', name='conv1_2')(input_data)
+    inner_2 = MaxPooling2D(pool_size=(pool_size, pool_size), name='max1_2')(inner_2)
+    inner_2 = Conv2D(conv_filters, kernel_size_2, padding='same', activation=act, kernel_initializer='he_normal', name='conv2_2')(inner_2)
+    inner_2 = MaxPooling2D(pool_size=(pool_size, pool_size), name='max2_2')(inner_2)
+
+    inner_3 = Conv2D(conv_filters, kernel_size_3, padding='same', activation=act, kernel_initializer='he_normal', name='conv1_3')(input_data)
+    inner_3 = MaxPooling2D(pool_size=(pool_size, pool_size), name='max1_3')(inner_3)
+    inner_3 = Conv2D(conv_filters, kernel_size_3, padding='same', activation=act, kernel_initializer='he_normal', name='conv2_3')(inner_3)
+    inner_3 = MaxPooling2D(pool_size=(pool_size, pool_size), name='max2_3')(inner_3)
+
+    inner_4 = Conv2D(conv_filters, kernel_size_4, padding='same', activation=act, kernel_initializer='he_normal', name='conv1_4')(input_data)
+    inner_4 = MaxPooling2D(pool_size=(pool_size, pool_size), name='max1_4')(inner_4)
+    inner_4 = Conv2D(conv_filters, kernel_size_4, padding='same', activation=act, kernel_initializer='he_normal', name='conv2_4')(inner_4)
+    inner_4 = MaxPooling2D(pool_size=(pool_size, pool_size), name='max2_4')(inner_4)
+
+    conv_to_rnn_dims = (img_w // (pool_size ** 2), (img_h // (pool_size ** 2)) * conv_filters)
+    
+    inner = Reshape(target_shape=conv_to_rnn_dims, name='reshape')(inner)
+    inner_2 = Reshape(target_shape=conv_to_rnn_dims, name='reshape_2')(inner_2)
+    inner_3 = Reshape(target_shape=conv_to_rnn_dims, name='reshape_3')(inner_3)
+    inner_4 = Reshape(target_shape=conv_to_rnn_dims, name='reshape_4')(inner_4)
+
+
+    # cuts down input size going into RNN:
+    inner = Dense(time_dense_size, activation=act, name='dense1')(concatenate([inner, inner_2, inner_3, inner_4]))
+
+    # Two layers of bidirectional LSTMs:
+    lstm_1 = LSTM(rnn_size, return_sequences=True, kernel_initializer='he_normal', name='LSTM1')(inner)
+    lstm_1b = LSTM(rnn_size, return_sequences=True, go_backwards=True, kernel_initializer='he_normal', name='LSTM1_b')(inner)
+    lstm1_merged = add([lstm_1, lstm_1b])
+    lstm_2 = LSTM(rnn_size, return_sequences=True, kernel_initializer='he_normal', name='LSTM2')(lstm1_merged)
+    lstm_2b = LSTM(rnn_size, return_sequences=True, go_backwards=True, kernel_initializer='he_normal', name='LSTM2_b')(lstm1_merged)
+
+    rnn_1 = SimpleRNN(rnn_size, return_sequences=True, kernel_initializer='he_normal', name='RNN1')(inner)
+    rnn_2 = SimpleRNN(rnn_size, return_sequences=True, kernel_initializer='he_normal', name='RNN2')(rnn_1)
+
+    gru_1 = GRU(rnn_size, return_sequences=True, kernel_initializer='he_normal', name='GRU1')(inner)
+    gru_1b = GRU(rnn_size, return_sequences=True, go_backwards=True, kernel_initializer='he_normal', name='GRU1_b')(inner)
+    gru1_merged = add([gru_1, gru_1b])
+    gru_2 = GRU(rnn_size, return_sequences=True, kernel_initializer='he_normal', name='GRU2')(gru1_merged)
+    gru_2b = GRU(rnn_size, return_sequences=True, go_backwards=True, kernel_initializer='he_normal', name='GRU2_b')(gru1_merged)
+
+    # transforms RNN output to character activations:
+    inner = Dense(img_gen.get_output_size(), kernel_initializer='he_normal',
+                  name='dense2')(concatenate([lstm_2, lstm_2b, rnn_2, gru_2, gru_2b]))
+    y_pred = Activation('softmax', name='softmax')(inner)
+    Model(inputs=input_data, outputs=y_pred).summary()
